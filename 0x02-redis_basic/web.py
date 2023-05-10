@@ -1,54 +1,55 @@
 #!/usr/bin/env python3
-"""In this tasks, we will implement a get_page function
-(prototype: def get_page(url: str) -> str:). The core of
-the function is very simple. It uses the requests module
-to obtain the HTML content of a particular URL and returns it.
-
-Start in a new file named web.py and do not reuse the code
-written in exercise.py.
-
-Inside get_page track how many times a particular URL was
-accessed in the key "count:{url}" and cache the result with
-an expiration time of 10 seconds.
-
-Tip: Use http://slowwly.robertomurray.co.uk to simulate
-a slow response and test your caching."""
-
-
-import redis
+"""Module for implementing an expiring web cache and tracker
+"""
 import requests
+import time
 from functools import wraps
 
-r = redis.Redis()
+CACHE_EXPIRATION_TIME = 10  # seconds
+CACHE = {}
 
 
-def url_access_count(method):
-    """decorator for get_page function"""
-    @wraps(method)
-    def wrapper(url):
-        """wrapper function"""
-        key = "cached:" + url
-        cached_value = r.get(key)
-        if cached_value:
-            return cached_value.decode("utf-8")
+def cache(fn):
+    """_summary_
 
-            # Get new content and update cache
-        key_count = "count:" + url
-        html_content = method(url)
+    Args:
+        fn (function): _description_
 
-        r.incr(key_count)
-        r.set(key, html_content, ex=10)
-        r.expire(key, 10)
-        return html_content
-    return wrapper
+    Returns:
+        _type_: _description_
+    """
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
+        url = args[0]
+        if url in CACHE and CACHE[url]["timestamp"] + CACHE_EXPIRATION_TIME > \
+                time.time():
+            CACHE[url]["count"] += 1
+            return CACHE[url]["content"]
+        else:
+            content = fn(*args, **kwargs)
+            CACHE[url] = {"content": content,
+                          "timestamp": time.time(), "count": 1}
+            return content
+    return wrapped
 
 
-@url_access_count
+@cache
 def get_page(url: str) -> str:
-    """obtain the HTML content of a particular"""
-    results = requests.get(url)
-    return results.text
+    """_summary_
 
+    Args:
+        url (str): _description_
 
-if __name__ == "__main__":
-    get_page('http://slowwly.robertomurray.co.uk')
+    Returns:
+        str: _description_
+    """
+    global count
+    # increment count
+    count += 1
+    response = requests.get(url)
+    return response.content.decode('utf-8')
